@@ -5,7 +5,6 @@
 #include "pico-game-engine/engine/level.hpp"
 #include "pico-game-engine/engine/draw.hpp"
 #include "general.hpp"
-#include "loading.hpp"
 
 class PicoGTA;
 
