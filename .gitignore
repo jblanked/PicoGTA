@@ -2,3 +2,4 @@
 venv/
 .vscode/
 engine_config.hpp
+config.hpp
