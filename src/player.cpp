@@ -10,27 +10,23 @@
 #include ENGINE_STORAGE_INCLUDE
 #endif
 
-Player::Player(const char *user_name, const char *user_pass) : Entity(username, ENTITY_PLAYER, Vector(4, 20), Vector(1.0f, 2.0f), nullptr)
+Player::Player(const char *user_name, const char *user_pass)
+    : Entity("", ENTITY_3D_SPRITE, Vector(3.35f, -10.0f), Vector(0.6f, 1.5f),
+             nullptr, nullptr, nullptr, CallbackEntityGame(), CallbackEntityGame(),
+             CallbackEntityGame(), CallbackEntityDrawGame(), CallbackEntityEntityGame(),
+             false, SPRITE_3D_HUMANOID, 0xFD20)
 {
-    sprite_3d = ENGINE_MEM_NEW Sprite3D();
-    if (!sprite_3d)
-    {
-        ENGINE_LOG_INFO("[Player:Player] Failed to create Sprite3D for player\n");
-        return;
-    }
-    sprite_3d_type = SPRITE_3D_CUSTOM;
-    sprite_rotation = 0.0f;
-    sprite_3d->setActive(true);
-    sprite_3d->setWireframe(WIREFRAME_ENABLED);
-    direction = Vector(1, 0);                                    // facing east initially
-    plane = Vector(0, 0.66);                                     // camera plane perpendicular to direction
-    is_player = true;                                            // Mark this entity as a player (so level doesn't delete it)
-    end_position = Vector(4, 20);                                // Initialize end position
-    start_position = Vector(4, 20);                              // Initialize start position
-    snprintf(username, sizeof(this->username), "%s", user_name); // set username with bounds checking
-    name = this->username;                                       // set name
-    snprintf(password, sizeof(this->password), "%s", user_pass); // set password with bounds checking
-    this->is_visible = false;                                    // dont show player's sprite
+    direction = Vector(0.0f, 1.0f);
+    plane = Vector(-0.72f, 0.0f);
+    is_player = true;
+    start_position = position;
+    end_position = position;
+    if (user_name)
+        snprintf(username, sizeof(username), "%s", user_name);
+    if (user_pass)
+        snprintf(password, sizeof(password), "%s", user_pass);
+    name = username;
+    is_visible = true;
 }
 
 Player::~Player()
@@ -39,6 +35,8 @@ Player::~Player()
 
 void Player::collision(Entity *other, Game *game)
 {
+    (void)other;
+    (void)game;
 }
 
 void Player::render(Draw *canvas, Game *game)
@@ -47,6 +45,8 @@ void Player::render(Draw *canvas, Game *game)
     {
         return;
     }
+    if (city)
+        city->drawHud(canvas);
 }
 
 void Player::update(Game *game)
@@ -55,4 +55,7 @@ void Player::update(Game *game)
     {
         return;
     }
+    if (city)
+        city->updatePlayer(this, game);
+    Entity::update(game);
 }
