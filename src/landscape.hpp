@@ -56,8 +56,7 @@ public:
     enum
     {
         MAX_BUILDING_SPECS = 128,
-        MAX_BUILDINGS = 128,
-        MAX_CITY_MESHES = 24
+        MAX_BUILDINGS = 128
     };
 
     Landscape();
@@ -101,6 +100,7 @@ private:
     bool addSquad(const Vector &first, const Vector &second, const Vector &third,
                   const Vector &fourth, uint16_t color, bool bothSides);
     void addRoadLine(float line, float begin, float end, bool vertical);
+    bool addSpace(uint16_t triangles);
     void addStreets();
     bool addTriangle(const Vector &first, const Vector &second, const Vector &third,
                      uint16_t color);
@@ -110,7 +110,6 @@ private:
                      uint16_t wallColor);
     void buildHouse(float x, float z, float width, float depth, float height,
                     uint16_t wallColor, uint16_t roofColor);
-    bool ensureMeshCapacity(uint16_t triangles);
     void fillCity(float centerX, float centerZ);
     float minFloat(float left, float right) const;
 
@@ -142,11 +141,9 @@ private:
     Building buildings[MAX_BUILDINGS];
     int buildingSpecCount;
     BuildingSpec buildingSpecs[MAX_BUILDING_SPECS];
-    int currentMesh;
+    Entity *city;
     bool geometryError;
     Level *level;
     Map map;
-    int meshCount;
-    Entity *meshEntities[MAX_CITY_MESHES];
     Road road;
 };

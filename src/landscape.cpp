@@ -14,15 +14,10 @@ Landscape::Landscape()
       boxWest(0.0f),
       buildingCount(0),
       buildingSpecCount(0),
-      currentMesh(0),
+      city(nullptr),
       geometryError(false),
-      level(nullptr),
-      meshCount(0)
+      level(nullptr)
 {
-    for (int i = 0; i < MAX_CITY_MESHES; ++i)
-    {
-        meshEntities[i] = nullptr;
-    }
 }
 
 float Landscape::minFloat(float left, float right) const
@@ -34,67 +29,66 @@ bool Landscape::create(Level *level)
 {
     if (!level)
         return false;
-    if (meshCount != 0)
+    if (city != nullptr)
         return this->level == level;
 
     this->level = level;
-    for (int i = 0; i < MAX_CITY_MESHES; ++i)
+    Entity *entity = ENGINE_MEM_NEW Entity(
+        "Downtown", ENTITY_3D_SPRITE, Vector(0.0f, SCENE_ANCHOR_Z),
+        Vector(WORLD_SIZE, WORLD_SIZE), nullptr, nullptr, nullptr,
+        CallbackEntityGame(), CallbackEntityGame(), CallbackEntityGame(),
+        CallbackEntityDrawGame(), CallbackEntityEntityGame(), false,
+        SPRITE_3D_CUSTOM, COLOR_BLACK);
+    if (!entity)
     {
-        Entity *entity = ENGINE_MEM_NEW Entity(
-            "Downtown", ENTITY_3D_SPRITE, Vector(0.0f, SCENE_ANCHOR_Z),
-            Vector(WORLD_SIZE, WORLD_SIZE), nullptr, nullptr, nullptr,
-            CallbackEntityGame(), CallbackEntityGame(), CallbackEntityGame(),
-            CallbackEntityDrawGame(), CallbackEntityEntityGame(), false,
-            SPRITE_3D_CUSTOM, COLOR_BLACK);
-        if (!entity)
-        {
-            ENGINE_LOG_INFO("[Landscape:create] Failed to create city entity\n");
-            release();
-            return false;
-        }
-
-        Sprite3D *mesh = ENGINE_MEM_NEW Sprite3D();
-        if (!mesh)
-        {
-            ENGINE_LOG_INFO("[Landscape:create] Failed to create city mesh\n");
-            ENGINE_MEM_DELETE entity;
-            release();
-            return false;
-        }
-        mesh->setWireframe(false);
-        mesh->setPosition(entity->position);
-        entity->sprite_3d = mesh;
-        entity->sprite_3d_type = SPRITE_3D_CUSTOM;
-        entity->is_visible = false;
-
-        const int oldCount = level->getEntityCount();
-        level->entity_add(entity);
-        if (level->getEntityCount() != oldCount + 1)
-        {
-            ENGINE_MEM_DELETE entity;
-            ENGINE_LOG_INFO("[Landscape:create] Failed to add city mesh to level\n");
-            release();
-            return false;
-        }
-
-        meshEntities[meshCount] = entity;
-        ++meshCount;
+        ENGINE_LOG_INFO("[Landscape:create] Failed to create city entity\n");
+        release();
+        return false;
     }
+
+    Sprite3D *mesh = ENGINE_MEM_NEW Sprite3D();
+    if (!mesh)
+    {
+        ENGINE_LOG_INFO("[Landscape:create] Failed to create city mesh\n");
+        ENGINE_MEM_DELETE entity;
+        release();
+        return false;
+    }
+    if (!mesh->reserveTriangles(ENGINE_MAX_TRIANGLES_PER_SPRITE))
+    {
+        ENGINE_LOG_INFO("[Landscape:create] Failed to reserve city mesh\n");
+        ENGINE_MEM_DELETE mesh;
+        ENGINE_MEM_DELETE entity;
+        release();
+        return false;
+    }
+    mesh->setWireframe(false);
+    mesh->setPosition(entity->position);
+    entity->sprite_3d = mesh;
+    entity->sprite_3d_type = SPRITE_3D_CUSTOM;
+    entity->is_visible = false;
+
+    const int oldCount = level->getEntityCount();
+    level->entity_add(entity);
+    if (level->getEntityCount() != oldCount + 1)
+    {
+        ENGINE_MEM_DELETE entity;
+        ENGINE_LOG_INFO("[Landscape:create] Failed to add city mesh to level\n");
+        release();
+        return false;
+    }
+
+    city = entity;
     return true;
 }
 
 void Landscape::release()
 {
     level = nullptr;
-    meshCount = 0;
-    currentMesh = 0;
+    city = nullptr;
     buildingCount = 0;
     buildingSpecCount = 0;
     geometryError = false;
-    for (int i = 0; i < MAX_CITY_MESHES; ++i)
-    {
-        meshEntities[i] = nullptr;
-    }
 }
 
 void Landscape::buildAround(float centerX, float centerZ)
@@ -164,41 +158,30 @@ const Building *Landscape::getBuilding(int index) const
     return &buildings[index];
 }
 
-bool Landscape::ensureMeshCapacity(uint16_t triangles)
+bool Landscape::addSpace(uint16_t triangles)
 {
-    if (triangles > ENGINE_MAX_TRIANGLES_PER_SPRITE)
+    if ((uint32_t)city->sprite_3d->getTriangleCount() + triangles > ENGINE_MAX_TRIANGLES_PER_SPRITE)
     {
         geometryError = true;
         return false;
     }
-
-    while (currentMesh < meshCount)
-    {
-        Sprite3D *mesh = meshEntities[currentMesh]->sprite_3d;
-        if (mesh &&
-            (uint32_t)mesh->getTriangleCount() + triangles <= ENGINE_MAX_TRIANGLES_PER_SPRITE)
-            return true;
-        ++currentMesh;
-    }
-
-    geometryError = true;
-    return false;
+    return true;
 }
 
 bool Landscape::addTriangle(const Vector &first, const Vector &second,
                             const Vector &third, uint16_t color)
 {
-    if (!ensureMeshCapacity(1))
+    if (!addSpace(1))
         return false;
 
-    if (!meshEntities[currentMesh]->sprite_3d->addTriangle(
+    if (!city->sprite_3d->addTriangle(
             first.x, first.y, first.z, second.x, second.y, second.z,
             third.x, third.y, third.z, color, false))
     {
         geometryError = true;
         return false;
     }
-    meshEntities[currentMesh]->is_visible = true;
+    city->is_visible = true;
     return true;
 }
 
@@ -228,14 +211,14 @@ bool Landscape::addSquad(const Vector &first, const Vector &second,
 bool Landscape::addCube(float x, float y, float z, float width, float height,
                         float depth, uint16_t color)
 {
-    if (!ensureMeshCapacity(8))
+    if (!addSpace(8))
         return false;
-    if (!meshEntities[currentMesh]->sprite_3d->createCube(x, y, z, width, height, depth, color, false))
+    if (!city->sprite_3d->createCube(x, y, z, width, height, depth, color, false))
     {
         geometryError = true;
         return false;
     }
-    meshEntities[currentMesh]->is_visible = true;
+    city->is_visible = true;
     return true;
 }
 
@@ -413,14 +396,10 @@ void Landscape::fillCity(float centerX, float centerZ)
         return;
 
     geometryError = false;
-    currentMesh = 0;
     buildingCount = 0;
     buildingSpecCount = 0;
-    for (int i = 0; i < meshCount; ++i)
-    {
-        meshEntities[i]->sprite_3d->clearTriangles();
-        meshEntities[i]->is_visible = false;
-    }
+    city->sprite_3d->clear();
+    city->is_visible = false;
 
     const float half = CITY_FIELD_OF_VIEW + CHUNK_LAG;
     boxWest = centerX - half;
@@ -445,11 +424,7 @@ void Landscape::fillCity(float centerX, float centerZ)
     for (int i = 0; i < buildingSpecCount; ++i)
         addBuilding(buildingSpecs[i]);
 
-    for (int i = 0; i < meshCount; ++i)
-    {
-        meshEntities[i]->sprite_3d->setWireframe(false);
-        meshEntities[i]->is_visible = meshEntities[i]->sprite_3d->getTriangleCount() > 0;
-    }
+    city->is_visible = city->sprite_3d->getTriangleCount() > 0;
     if (geometryError)
         ENGINE_LOG_INFO("[Landscape] City geometry exceeded its fixed mesh capacity\n");
 }
