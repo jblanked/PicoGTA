@@ -148,6 +148,5 @@ private:
     Map map;
     int meshCount;
     Entity *meshEntities[MAX_CITY_MESHES];
-    Sprite3D *meshes[MAX_CITY_MESHES];
     Road road;
 };

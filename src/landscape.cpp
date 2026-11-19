@@ -22,7 +22,6 @@ Landscape::Landscape()
     for (int i = 0; i < MAX_CITY_MESHES; ++i)
     {
         meshEntities[i] = nullptr;
-        meshes[i] = nullptr;
     }
 }
 
@@ -79,7 +78,6 @@ bool Landscape::create(Level *level)
         }
 
         meshEntities[meshCount] = entity;
-        meshes[meshCount] = mesh;
         ++meshCount;
     }
     return true;
@@ -96,7 +94,6 @@ void Landscape::release()
     for (int i = 0; i < MAX_CITY_MESHES; ++i)
     {
         meshEntities[i] = nullptr;
-        meshes[i] = nullptr;
     }
 }
 
@@ -177,7 +174,7 @@ bool Landscape::ensureMeshCapacity(uint16_t triangles)
 
     while (currentMesh < meshCount)
     {
-        Sprite3D *mesh = meshes[currentMesh];
+        Sprite3D *mesh = meshEntities[currentMesh]->sprite_3d;
         if (mesh &&
             (uint32_t)mesh->getTriangleCount() + triangles <= ENGINE_MAX_TRIANGLES_PER_SPRITE)
             return true;
@@ -194,7 +191,7 @@ bool Landscape::addTriangle(const Vector &first, const Vector &second,
     if (!ensureMeshCapacity(1))
         return false;
 
-    if (!meshes[currentMesh]->addTriangle(
+    if (!meshEntities[currentMesh]->sprite_3d->addTriangle(
             first.x, first.y, first.z, second.x, second.y, second.z,
             third.x, third.y, third.z, color, false))
     {
@@ -233,7 +230,7 @@ bool Landscape::addCube(float x, float y, float z, float width, float height,
 {
     if (!ensureMeshCapacity(8))
         return false;
-    if (!meshes[currentMesh]->createCube(x, y, z, width, height, depth, color, false))
+    if (!meshEntities[currentMesh]->sprite_3d->createCube(x, y, z, width, height, depth, color, false))
     {
         geometryError = true;
         return false;
@@ -421,7 +418,7 @@ void Landscape::fillCity(float centerX, float centerZ)
     buildingSpecCount = 0;
     for (int i = 0; i < meshCount; ++i)
     {
-        meshes[i]->clearTriangles();
+        meshEntities[i]->sprite_3d->clearTriangles();
         meshEntities[i]->is_visible = false;
     }
 
@@ -450,8 +447,8 @@ void Landscape::fillCity(float centerX, float centerZ)
 
     for (int i = 0; i < meshCount; ++i)
     {
-        meshes[i]->setWireframe(false);
-        meshEntities[i]->is_visible = meshes[i]->getTriangleCount() > 0;
+        meshEntities[i]->sprite_3d->setWireframe(false);
+        meshEntities[i]->is_visible = meshEntities[i]->sprite_3d->getTriangleCount() > 0;
     }
     if (geometryError)
         ENGINE_LOG_INFO("[Landscape] City geometry exceeded its fixed mesh capacity\n");
