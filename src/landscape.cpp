@@ -168,15 +168,15 @@ bool Landscape::addSpace(uint16_t triangles)
     return true;
 }
 
-bool Landscape::addTriangle(const Vector &first, const Vector &second,
-                            const Vector &third, uint16_t color)
+bool Landscape::addTriangle(float x1, float y1, float z1,
+                            float x2, float y2, float z2,
+                            float x3, float y3, float z3, uint16_t color)
 {
     if (!addSpace(1))
         return false;
 
-    if (!city->sprite_3d->addTriangle(
-            first.x, first.y, first.z, second.x, second.y, second.z,
-            third.x, third.y, third.z, color, false))
+    if (!city->sprite_3d->addTriangle(x1, y1, z1, x2, y2, z2,
+                                      x3, y3, z3, color, false))
     {
         geometryError = true;
         return false;
@@ -185,24 +185,25 @@ bool Landscape::addTriangle(const Vector &first, const Vector &second,
     return true;
 }
 
-bool Landscape::addQuad(const Vector &first, const Vector &second,
-                        const Vector &third, const Vector &fourth, uint16_t color)
+bool Landscape::addQuad(float x1, float y1, float z1, float x2, float y2, float z2,
+                        float x3, float y3, float z3, float x4, float y4, float z4,
+                        uint16_t color)
 {
-    const bool firstAdded = addTriangle(first, second, third, color);
-    const bool secondAdded = addTriangle(first, fourth, second, color);
+    const bool firstAdded = addTriangle(x1, y1, z1, x2, y2, z2, x3, y3, z3, color);
+    const bool secondAdded = addTriangle(x1, y1, z1, x4, y4, z4, x2, y2, z2, color);
     return firstAdded && secondAdded;
 }
 
-bool Landscape::addSquad(const Vector &first, const Vector &second,
-                         const Vector &third, const Vector &fourth,
+bool Landscape::addSquad(float x1, float y1, float z1, float x2, float y2, float z2,
+                         float x3, float y3, float z3, float x4, float y4, float z4,
                          uint16_t color, bool bothSides)
 {
-    bool success = addQuad(first, second, third, fourth, color);
+    bool success = addQuad(x1, y1, z1, x2, y2, z2, x3, y3, z3, x4, y4, z4, color);
     if (bothSides)
     {
-        if (!addTriangle(first, third, second, color))
+        if (!addTriangle(x1, y1, z1, x3, y3, z3, x2, y2, z2, color))
             success = false;
-        if (!addTriangle(first, second, fourth, color))
+        if (!addTriangle(x1, y1, z1, x2, y2, z2, x4, y4, z4, color))
             success = false;
     }
     return success;
@@ -258,10 +259,10 @@ bool Landscape::addGroundRect(float x, float z, float width, float depth,
             const float halfWidth = cellWidth * 0.5f;
             const float halfDepth = cellDepth * 0.5f;
             const bool added = addQuad(
-                Vector(cellX - halfWidth, height, cellZ - halfDepth),
-                Vector(cellX + halfWidth, height, cellZ + halfDepth),
-                Vector(cellX + halfWidth, height, cellZ - halfDepth),
-                Vector(cellX - halfWidth, height, cellZ + halfDepth), color);
+                cellX - halfWidth, height, cellZ - halfDepth,
+                cellX + halfWidth, height, cellZ + halfDepth,
+                cellX + halfWidth, height, cellZ - halfDepth,
+                cellX - halfWidth, height, cellZ + halfDepth, color);
             if (!added)
                 success = false;
         }
@@ -275,14 +276,10 @@ void Landscape::addWindow(float x, float y, float z, float halfWidth, float half
     const float right = x + halfWidth;
     const float bottom = y - halfHeight;
     const float top = y + halfHeight;
-    const Vector lowerLeft(left, bottom, z);
-    const Vector lowerRight(right, bottom, z);
-    const Vector upperRight(right, top, z);
-    const Vector upperLeft(left, top, z);
-    addTriangle(lowerLeft, lowerRight, upperRight, COLOR_WINDOW);
-    addTriangle(lowerLeft, upperRight, upperLeft, COLOR_WINDOW);
-    addTriangle(lowerRight, lowerLeft, upperLeft, COLOR_WINDOW);
-    addTriangle(lowerRight, upperLeft, upperRight, COLOR_WINDOW);
+    addTriangle(left, bottom, z, right, bottom, z, right, top, z, COLOR_WINDOW);
+    addTriangle(left, bottom, z, right, top, z, left, top, z, COLOR_WINDOW);
+    addTriangle(right, bottom, z, left, bottom, z, left, top, z, COLOR_WINDOW);
+    addTriangle(right, bottom, z, left, top, z, right, top, z, COLOR_WINDOW);
 }
 
 void Landscape::addCarToMesh(float x, float sceneZ, uint16_t color)
@@ -312,39 +309,39 @@ void Landscape::buildGarage(float x, float z, float width, float depth,
     const float z1 = sceneZ + halfDepth - 0.1f;
     const float doorHalf = 1.2f;
 
-    addSquad(Vector(x - halfWidth, floorY, z0),
-             Vector(x + halfWidth, floorY, z1),
-             Vector(x + halfWidth, floorY, z0),
-             Vector(x - halfWidth, floorY, z1), COLOR_FLOOR, true);
-    addSquad(Vector(x - halfWidth, ceilingY, z0),
-             Vector(x + halfWidth, ceilingY, z1),
-             Vector(x + halfWidth, ceilingY, z0),
-             Vector(x - halfWidth, ceilingY, z1), COLOR_CEILING, true);
-    addSquad(Vector(x - halfWidth, floorY, z0),
-             Vector(x + halfWidth, ceilingY, z0),
-             Vector(x + halfWidth, floorY, z0),
-             Vector(x - halfWidth, ceilingY, z0), wallColor, true);
+    addSquad(x - halfWidth, floorY, z0,
+             x + halfWidth, floorY, z1,
+             x + halfWidth, floorY, z0,
+             x - halfWidth, floorY, z1, COLOR_FLOOR, true);
+    addSquad(x - halfWidth, ceilingY, z0,
+             x + halfWidth, ceilingY, z1,
+             x + halfWidth, ceilingY, z0,
+             x - halfWidth, ceilingY, z1, COLOR_CEILING, true);
+    addSquad(x - halfWidth, floorY, z0,
+             x + halfWidth, ceilingY, z0,
+             x + halfWidth, floorY, z0,
+             x - halfWidth, ceilingY, z0, wallColor, true);
 
     if (doorHalf < halfWidth)
     {
-        addSquad(Vector(x - halfWidth, floorY, z1),
-                 Vector(x - doorHalf, ceilingY, z1),
-                 Vector(x - doorHalf, floorY, z1),
-                 Vector(x - halfWidth, ceilingY, z1), wallColor, true);
-        addSquad(Vector(x + doorHalf, floorY, z1),
-                 Vector(x + halfWidth, ceilingY, z1),
-                 Vector(x + halfWidth, floorY, z1),
-                 Vector(x + doorHalf, ceilingY, z1), wallColor, true);
+        addSquad(x - halfWidth, floorY, z1,
+                 x - doorHalf, ceilingY, z1,
+                 x - doorHalf, floorY, z1,
+                 x - halfWidth, ceilingY, z1, wallColor, true);
+        addSquad(x + doorHalf, floorY, z1,
+                 x + halfWidth, ceilingY, z1,
+                 x + halfWidth, floorY, z1,
+                 x + doorHalf, ceilingY, z1, wallColor, true);
     }
 
-    addSquad(Vector(x - halfWidth, floorY, z0),
-             Vector(x - halfWidth, ceilingY, z1),
-             Vector(x - halfWidth, floorY, z1),
-             Vector(x - halfWidth, ceilingY, z0), wallColor, true);
-    addSquad(Vector(x + halfWidth, floorY, z0),
-             Vector(x + halfWidth, ceilingY, z1),
-             Vector(x + halfWidth, floorY, z1),
-             Vector(x + halfWidth, ceilingY, z0), wallColor, true);
+    addSquad(x - halfWidth, floorY, z0,
+             x - halfWidth, ceilingY, z1,
+             x - halfWidth, floorY, z1,
+             x - halfWidth, ceilingY, z0, wallColor, true);
+    addSquad(x + halfWidth, floorY, z0,
+             x + halfWidth, ceilingY, z1,
+             x + halfWidth, floorY, z1,
+             x + halfWidth, ceilingY, z0, wallColor, true);
     addCarToMesh(x + halfWidth * 0.45f, sceneZ, COLOR_PLAYER);
 }
 
