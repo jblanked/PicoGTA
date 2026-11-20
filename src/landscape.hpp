@@ -79,6 +79,10 @@ public:
 private:
     struct BuildingSpec
     {
+        int col;
+        int row;
+        int slot;
+        int chunk_index;
         float depth;
         float distance;
         float height;
@@ -93,15 +97,20 @@ private:
     struct RenderChunk
     {
         Sprite3D *mesh = nullptr;
+        int col = 0;
+        int row = 0;
+        int slot = 0;
         Vector bounds_min;
         Vector bounds_max;
+        bool cache_valid = false;
         bool bounds_valid = false;
+        bool active = false;
     };
 
     void addBlock(int col, int row, float blockX, float blockZ,
                   float centerX, float centerZ);
     void addBlocks(float centerX, float centerZ);
-    void addBuilding(const BuildingSpec &spec);
+    void addBuilding(const BuildingSpec &spec, int chunkIndex, bool rebuildMesh);
     static void renderCallback(Entity *entity, Draw *draw, Game *game, void *context);
     void renderCity(Draw *draw, Game *game);
     bool boundsMayBeVisible(const Vector &minimum, const Vector &maximum,
@@ -161,6 +170,7 @@ private:
     BuildingSpec buildingSpecs[MAX_BUILDING_SPECS];
     RenderChunk roadChunk;
     RenderChunk buildingChunks[MAX_BUILDING_CHUNKS];
+    int activeBuildingChunkIndices[MAX_BUILDING_CHUNKS];
     int buildingChunkCount;
     Sprite3D *activeMesh;
     uint16_t activeTriangleCapacity;
