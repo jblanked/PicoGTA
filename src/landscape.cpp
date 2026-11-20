@@ -17,6 +17,8 @@ Landscape::Landscape()
       buildingSpecCount(0),
       buildingChunkCount(0),
       activeMesh(nullptr),
+      activeTriangleCapacity(0),
+      buildingTriangleCapacity(0),
       activeBoundsActive(false),
       activeBoundsValid(false),
       activeBoundsMin(),
@@ -76,15 +78,34 @@ bool Landscape::create(Level *level)
     roadChunk.mesh->setWireframe(false);
     roadChunk.mesh->setPosition(entity->position);
     activeMesh = roadChunk.mesh;
+    activeTriangleCapacity = ENGINE_MAX_TRIANGLES_PER_SPRITE;
+
+    buildingTriangleCapacity = ENGINE_MAX_TRIANGLES_PER_SPRITE < MAX_BUILDING_TRIANGLES
+                                   ? ENGINE_MAX_TRIANGLES_PER_SPRITE
+                                   : MAX_BUILDING_TRIANGLES;
+    for (int i = 0; i < MAX_BUILDING_CHUNKS; ++i)
+    {
+        RenderChunk &chunk = buildingChunks[i];
+        chunk.mesh = ENGINE_MEM_NEW Sprite3D();
+        if (!chunk.mesh || !chunk.mesh->reserveTriangles(buildingTriangleCapacity))
+        {
+            if (chunk.mesh)
+                ENGINE_MEM_DELETE chunk.mesh;
+            chunk = RenderChunk();
+            ENGINE_MEM_DELETE entity;
+            ENGINE_LOG_INFO("[Landscape:create] Failed to reserve building mesh pool\n");
+            release();
+            return false;
+        }
+        chunk.mesh->setWireframe(false);
+        chunk.mesh->setPosition(entity->position);
+    }
     entity->is_visible = false;
 
     const int oldCount = level->getEntityCount();
     level->entity_add(entity);
     if (level->getEntityCount() != oldCount + 1)
     {
-        ENGINE_MEM_DELETE roadChunk.mesh;
-        roadChunk = RenderChunk();
-        activeMesh = nullptr;
         ENGINE_MEM_DELETE entity;
         ENGINE_LOG_INFO("[Landscape:create] Failed to add city mesh to level\n");
         release();
@@ -223,7 +244,7 @@ bool Landscape::boundsMayBeVisible(const Vector &minimum, const Vector &maximum,
 
 void Landscape::release()
 {
-    for (int i = 0; i < buildingChunkCount; ++i)
+    for (int i = 0; i < MAX_BUILDING_CHUNKS; ++i)
     {
         if (buildingChunks[i].mesh)
             ENGINE_MEM_DELETE buildingChunks[i].mesh;
@@ -234,6 +255,8 @@ void Landscape::release()
         ENGINE_MEM_DELETE roadChunk.mesh;
     roadChunk = RenderChunk();
     activeMesh = nullptr;
+    activeTriangleCapacity = 0;
+    buildingTriangleCapacity = 0;
     activeBoundsActive = false;
     activeBoundsValid = false;
     level = nullptr;
@@ -313,7 +336,7 @@ const Building *Landscape::getBuilding(int index) const
 bool Landscape::addSpace(uint16_t triangles)
 {
     if (!activeMesh ||
-        (uint32_t)activeMesh->getTriangleCount() + triangles > ENGINE_MAX_TRIANGLES_PER_SPRITE)
+        (uint32_t)activeMesh->getTriangleCount() + triangles > activeTriangleCapacity)
     {
         geometryError = true;
         return false;
@@ -546,32 +569,28 @@ void Landscape::buildHouse(float x, float z, float width, float depth,
 
 void Landscape::addBuilding(const BuildingSpec &spec)
 {
-    if (buildingCount >= MAX_BUILDINGS || buildingChunkCount >= MAX_BUILDINGS)
+    if (buildingCount >= MAX_BUILDINGS || buildingChunkCount >= MAX_BUILDING_CHUNKS)
     {
         geometryError = true;
         return;
     }
 
-    Sprite3D *mesh = ENGINE_MEM_NEW Sprite3D();
+    RenderChunk &chunk = buildingChunks[buildingChunkCount];
+    Sprite3D *mesh = chunk.mesh;
     if (!mesh)
     {
         geometryError = true;
         return;
     }
-    const uint16_t meshCapacity = ENGINE_MAX_TRIANGLES_PER_SPRITE < 64
-                                      ? ENGINE_MAX_TRIANGLES_PER_SPRITE
-                                      : 64;
-    if (!mesh->reserveTriangles(meshCapacity))
-    {
-        ENGINE_MEM_DELETE mesh;
-        geometryError = true;
-        return;
-    }
+    mesh->clear();
+    chunk.bounds_valid = false;
     mesh->setWireframe(false);
     mesh->setPosition(city->position);
 
     Sprite3D *previousMesh = activeMesh;
+    const uint16_t previousCapacity = activeTriangleCapacity;
     activeMesh = mesh;
+    activeTriangleCapacity = buildingTriangleCapacity;
     activeBoundsActive = true;
     activeBoundsValid = false;
     const float sceneZ = spec.z - SCENE_ANCHOR_Z;
@@ -601,16 +620,16 @@ void Landscape::addBuilding(const BuildingSpec &spec)
 
     activeBoundsActive = false;
     activeMesh = previousMesh;
+    activeTriangleCapacity = previousCapacity;
     if (activeBoundsValid && mesh->getTriangleCount() > 0)
     {
-        RenderChunk &chunk = buildingChunks[buildingChunkCount++];
-        chunk.mesh = mesh;
         chunk.bounds_min = activeBoundsMin;
         chunk.bounds_max = activeBoundsMax;
         chunk.bounds_valid = true;
+        ++buildingChunkCount;
     }
     else
-        ENGINE_MEM_DELETE mesh;
+        mesh->clear();
 
     if (buildingCount < MAX_BUILDINGS)
         buildings[buildingCount++] = Building(spec.x, spec.z, spec.width, spec.depth, isHouse);
@@ -629,8 +648,8 @@ void Landscape::fillCity(float centerX, float centerZ)
     for (int i = 0; i < buildingChunkCount; ++i)
     {
         if (buildingChunks[i].mesh)
-            ENGINE_MEM_DELETE buildingChunks[i].mesh;
-        buildingChunks[i] = RenderChunk();
+            buildingChunks[i].mesh->clear();
+        buildingChunks[i].bounds_valid = false;
     }
     buildingChunkCount = 0;
     if (!roadChunk.mesh)
@@ -638,6 +657,7 @@ void Landscape::fillCity(float centerX, float centerZ)
     roadChunk.mesh->clear();
     roadChunk.bounds_valid = false;
     activeMesh = roadChunk.mesh;
+    activeTriangleCapacity = ENGINE_MAX_TRIANGLES_PER_SPRITE;
     activeBoundsActive = true;
     activeBoundsValid = false;
     city->is_visible = false;

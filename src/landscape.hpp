@@ -56,7 +56,9 @@ public:
     enum
     {
         MAX_BUILDING_SPECS = 128,
-        MAX_BUILDINGS = 128
+        MAX_BUILDINGS = 128,
+        MAX_BUILDING_CHUNKS = 32,
+        MAX_BUILDING_TRIANGLES = 64
     };
 
     Landscape();
@@ -158,9 +160,11 @@ private:
     int buildingSpecCount;
     BuildingSpec buildingSpecs[MAX_BUILDING_SPECS];
     RenderChunk roadChunk;
-    RenderChunk buildingChunks[MAX_BUILDINGS];
+    RenderChunk buildingChunks[MAX_BUILDING_CHUNKS];
     int buildingChunkCount;
     Sprite3D *activeMesh;
+    uint16_t activeTriangleCapacity;
+    uint16_t buildingTriangleCapacity;
     bool activeBoundsActive;
     bool activeBoundsValid;
     Vector activeBoundsMin;
