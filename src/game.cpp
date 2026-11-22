@@ -9,6 +9,10 @@
 #include HTTP_INCLUDE
 #include JSON_INCLUDE
 
+#ifndef PICO_GTA_WS_PORT
+#define PICO_GTA_WS_PORT 80
+#endif
+
 float PicoGTA::absoluteFloat(float value) const
 {
     return value < 0.0f ? -value : value;
@@ -1870,8 +1874,16 @@ void PicoGTA::pollMultiplayerHttp()
     {
         if (serverError[0])
         {
-            finishMultiplayerLeave(serverError);
-            return;
+            if (strcmp(serverError, "Lobby not found") == 0)
+            {
+                // Lobby already gone
+                serverError[0] = '\0';
+            }
+            else
+            {
+                finishMultiplayerLeave(serverError);
+                return;
+            }
         }
         if (!hasResponse || !response[0])
         {
@@ -1993,7 +2005,7 @@ void PicoGTA::connectMultiplayer()
     multiplayerConnectionState = CONNECTION_IDLE;
     copyText(multiplayerStatus, sizeof(multiplayerStatus), "Connecting...");
     multiplayerView = VIEW_PENDING;
-    if (!HTTP_WEBSOCKET_START(url, 80))
+    if (!HTTP_WEBSOCKET_START(url, PICO_GTA_WS_PORT))
     {
         leaveMultiplayer(false, "Connection failed: WebSocket could not start");
         return;
