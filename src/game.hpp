@@ -254,5 +254,5 @@ private:
     const float walkAccel = 0.12f;
     const float walkFriction = 0.08f;
     const float walkSpeed = 1.0f;
-    const float walkTurn = 0.25f;
+    const float walkTurn = 0.28f;
 };
