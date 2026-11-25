@@ -877,7 +877,7 @@ void PicoGTA::spawnTraffic(int index)
     for (int attempt = 0; attempt < 10; ++attempt)
     {
         axis = (int)cityMap.nextRandom(2);
-        line = (int)cityMap.nextRandom(CITY_GRID_LIMIT * 2 + 1) - CITY_GRID_LIMIT;
+        line = (int)cityMap.nextRandom((CITY_GRID_LIMIT - 1) * 2 + 1) - (CITY_GRID_LIMIT - 1);
         direction = cityMap.nextRandom(2) == 0 ? 1 : -1;
         const float lane = direction == 1 ? -trafficOffset : trafficOffset;
         if (axis == 0)
@@ -895,10 +895,46 @@ void PicoGTA::spawnTraffic(int index)
     }
 
     const float edge = Landscape::WORLD_HALF - 4.0f;
+    float tx = 0.0f;
+    float tz = 0.0f;
+    if (axis == 0)
+    {
+        int j = (int)(direction == 1 ? ceilf(z / Landscape::ROAD_SPACING)
+                                     : floorf(z / Landscape::ROAD_SPACING));
+        tz = j * Landscape::ROAD_SPACING;
+        if (tz < -edge || tz > edge)
+        {
+            direction = -direction;
+            const float lane = direction == 1 ? -trafficOffset : trafficOffset;
+            x = line * Landscape::ROAD_SPACING + lane;
+            j = (int)(direction == 1 ? ceilf(z / Landscape::ROAD_SPACING)
+                                     : floorf(z / Landscape::ROAD_SPACING));
+            tz = j * Landscape::ROAD_SPACING;
+        }
+        tx = x;
+    }
+    else
+    {
+        int i = (int)(direction == 1 ? ceilf(x / Landscape::ROAD_SPACING)
+                                     : floorf(x / Landscape::ROAD_SPACING));
+        tx = i * Landscape::ROAD_SPACING;
+        if (tx < -edge || tx > edge)
+        {
+            direction = -direction;
+            const float lane = direction == 1 ? -trafficOffset : trafficOffset;
+            z = line * Landscape::ROAD_SPACING + lane;
+            i = (int)(direction == 1 ? ceilf(x / Landscape::ROAD_SPACING)
+                                     : floorf(x / Landscape::ROAD_SPACING));
+            tx = i * Landscape::ROAD_SPACING;
+        }
+        tz = z;
+    }
     x = clampFloat(x, -edge, edge);
     z = clampFloat(z, -edge, edge);
     traffic[index]->setTrafficState(index, axis, line, direction, trafficSpeed);
     traffic[index]->position_set(x, z);
+    traffic[index]->setTarget(tx, tz);
+    traffic[index]->setTurnCount(0);
     traffic[index]->is_visible = true;
 }
 
@@ -1245,17 +1281,15 @@ void PicoGTA::updateTraffic(Vehicle *car)
     if (index < 0 || index >= TRAFFIC_COUNT)
         return;
 
-    const int axis = car->getTrafficAxis();
+    int axis = car->getTrafficAxis();
     int direction = car->getTrafficDirection();
     const float trafficSpeed = car->getTrafficSpeed();
-    float trafficHeading;
+    // exact axis vectors; no float epsilon in reached checks
+    float dx, dz;
     if (axis == 0)
-        trafficHeading = direction == 1 ? cityPi * 0.5f : -cityPi * 0.5f;
+        dx = 0.0f, dz = direction == 1 ? 1.0f : -1.0f;
     else
-        trafficHeading = direction == 1 ? 0.0f : cityPi;
-
-    float dx = cosf(trafficHeading);
-    float dz = sinf(trafficHeading);
+        dx = direction == 1 ? 1.0f : -1.0f, dz = 0.0f;
     const float oldX = car->position.x;
     const float oldZ = car->position.y;
     float nextX = oldX + dx * trafficSpeed;
@@ -1267,14 +1301,132 @@ void PicoGTA::updateTraffic(Vehicle *car)
     else
     {
         direction = -direction;
-        trafficHeading = axis == 0
-                             ? (direction == 1 ? cityPi * 0.5f : -cityPi * 0.5f)
-                             : (direction == 1 ? 0.0f : cityPi);
-        dx = cosf(trafficHeading);
-        dz = sinf(trafficHeading);
+        if (axis == 0)
+            dx = 0.0f, dz = direction == 1 ? 1.0f : -1.0f;
+        else
+            dx = direction == 1 ? 1.0f : -1.0f, dz = 0.0f;
         nextX = oldX + dx * trafficSpeed;
         nextZ = oldZ + dz * trafficSpeed;
         car->position_set(nextX, nextZ);
+        // target the intersection behind in the new direction
+        const float spacing = Landscape::ROAD_SPACING;
+        if (axis == 0)
+        {
+            const int j = (int)(direction == 1
+                                    ? ceilf(nextZ / spacing)
+                                    : floorf(nextZ / spacing));
+            car->setTarget(nextX, j * spacing);
+        }
+        else
+        {
+            const int i = (int)(direction == 1
+                                    ? ceilf(nextX / spacing)
+                                    : floorf(nextX / spacing));
+            car->setTarget(i * spacing, nextZ);
+        }
+    }
+
+    const float tx = car->end_position.x;
+    const float tz = car->end_position.y;
+    const bool reached =
+        (dx > 0.0f && nextX >= tx) || (dx < 0.0f && nextX <= tx) ||
+        (dz > 0.0f && nextZ >= tz) || (dz < 0.0f && nextZ <= tz);
+
+    if (reached)
+    {
+        const float edge = Landscape::WORLD_HALF - 4.0f;
+        const float spacing = Landscape::ROAD_SPACING;
+        int newAxis = axis;
+        int newDirection = direction;
+        int newLine = car->getTrafficLine();
+        float nx = nextX;
+        float nz = nextZ;
+        if (axis == 0)
+        {
+            // at intersection; pick next leg for this car
+            const int v = car->getTrafficLine();
+            const int j = (int)(nextZ / spacing + (nextZ > 0.0f ? 0.5f : -0.5f));
+            const uint32_t roll = cityMap.cellHash(index, car->getTurnCount(), 5);
+            const int choice = (int)(roll % 4);
+            if (choice == 0 || choice == 1)
+            {
+                const int ahead = choice == 0 ? direction : -direction;
+                nz = (j + ahead) * spacing;
+                nx = v * spacing + (ahead == 1 ? -trafficOffset : trafficOffset);
+                newDirection = ahead;
+                if (nz < -edge || nz > edge)
+                {
+                    newDirection = -direction;
+                    nz = (j - direction) * spacing;
+                    nx = v * spacing + (newDirection == 1 ? -trafficOffset : trafficOffset);
+                }
+            }
+            else
+            {
+                // turn: switch to perpendicular road
+                int ndir = choice == 2 ? (direction == 1 ? 1 : -1)
+                                       : (direction == 1 ? -1 : 1);
+                nx = (v + ndir) * spacing;
+                nz = j * spacing + (ndir == 1 ? -trafficOffset : trafficOffset);
+                if (nx < -edge || nx > edge)
+                {
+                    ndir = -ndir;
+                    nx = (v + ndir) * spacing;
+                    nz = j * spacing + (ndir == 1 ? -trafficOffset : trafficOffset);
+                }
+                newAxis = 1;
+                newLine = j;
+                newDirection = ndir;
+            }
+        }
+        else
+        {
+            // at intersection; pick next leg for this car
+            const int v = car->getTrafficLine();
+            const int i = (int)(nextX / spacing + (nextX > 0.0f ? 0.5f : -0.5f));
+            const uint32_t roll = cityMap.cellHash(index, car->getTurnCount(), 11);
+            const int choice = (int)(roll % 4);
+            if (choice == 0 || choice == 1)
+            {
+                const int ahead = choice == 0 ? direction : -direction;
+                nx = (i + ahead) * spacing;
+                nz = v * spacing + (ahead == 1 ? -trafficOffset : trafficOffset);
+                newDirection = ahead;
+                if (nx < -edge || nx > edge)
+                {
+                    newDirection = -direction;
+                    nx = (i - direction) * spacing;
+                    nz = v * spacing + (newDirection == 1 ? -trafficOffset : trafficOffset);
+                }
+            }
+            else
+            {
+                // turn: switch to perpendicular road
+                int ndir = choice == 2 ? (direction == 1 ? 1 : -1)
+                                       : (direction == 1 ? -1 : 1);
+                nx = i * spacing + (ndir == 1 ? -trafficOffset : trafficOffset);
+                nz = (v + ndir) * spacing;
+                if (nx < -edge || nx > edge)
+                {
+                    ndir = -ndir;
+                    nx = i * spacing + (ndir == 1 ? -trafficOffset : trafficOffset);
+                    nz = (v + ndir) * spacing;
+                }
+                newAxis = 0;
+                newLine = i;
+                newDirection = ndir;
+            }
+        }
+
+        car->setTrafficState(index, newAxis, newLine, newDirection, trafficSpeed);
+        car->setTarget(nx, nz);
+        car->setTurnCount(car->getTurnCount() + 1);
+        axis = newAxis;
+        direction = newDirection;
+        if (axis == 0)
+            dx = 0.0f, dz = direction == 1 ? 1.0f : -1.0f;
+        else
+            dx = direction == 1 ? 1.0f : -1.0f, dz = 0.0f;
     }
 
     car->setTrafficState(index, axis, car->getTrafficLine(), direction, trafficSpeed);
