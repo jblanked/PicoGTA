@@ -1349,12 +1349,9 @@ void PicoGTA::drawBackground(Draw *canvas)
     const int width = (int)size.x;
     const int height = (int)size.y;
     const int horizon = (int)(height * 0.52f);
-    const int haze = scaleY(canvas, 18.0f);
     const int roofBand = scaleY(canvas, 2.0f);
     drawFillRect(canvas, 0, 0, width, horizon, Landscape::COLOR_SKY);
-    drawFillRect(canvas, 0, horizon, width, haze, Landscape::COLOR_HORIZON);
-    drawFillRect(canvas, 0, horizon + haze, width, height - horizon - haze,
-                 Landscape::COLOR_GROUND);
+    drawFillRect(canvas, 0, horizon, width, height - horizon, Landscape::COLOR_GROUND);
     drawFillRect(canvas, 0, horizon - roofBand, width, roofBand, Landscape::COLOR_ROOF);
 }
 
