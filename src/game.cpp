@@ -909,8 +909,9 @@ void PicoGTA::spawnPerson(int index)
 
     Pedestrian *person = people[index];
     const float offset = (float)cityMap.nextRandom(41) - 20.0f;
-    const float along = cityMap.nextRandom(2) == 0 ? -1.0f : 1.0f;
+    float along = cityMap.nextRandom(2) == 0 ? -1.0f : 1.0f;
     const int roll = (int)cityMap.nextRandom(4);
+    const float edge = Landscape::WORLD_HALF - 4.0f;
     float x = 0.0f;
     float z = 0.0f;
     if (roll < 2)
@@ -920,23 +921,45 @@ void PicoGTA::spawnPerson(int index)
         x = line * Landscape::ROAD_SPACING +
             (roll == 0 ? -Landscape::SIDEWALK_OFFSET : Landscape::SIDEWALK_OFFSET);
         z = player->position.y + offset;
+        int j = (int)(along > 0.0f ? ceilf(z / Landscape::ROAD_SPACING)
+                                   : floorf(z / Landscape::ROAD_SPACING));
+        float tz = j * Landscape::ROAD_SPACING;
+        if (tz < -edge || tz > edge)
+        {
+            along = -along;
+            j = (int)(along > 0.0f ? ceilf(z / Landscape::ROAD_SPACING)
+                                   : floorf(z / Landscape::ROAD_SPACING));
+            tz = j * Landscape::ROAD_SPACING;
+        }
         person->setDirection(0.0f, along);
+        person->setTarget(x, tz);
     }
     else
     {
         const int line = cityMap.gridIndex(player->position.y, Landscape::ROAD_SPACING,
                                            CITY_GRID_LIMIT);
-        x = player->position.x + offset;
         z = line * Landscape::ROAD_SPACING +
             (roll == 2 ? -Landscape::SIDEWALK_OFFSET : Landscape::SIDEWALK_OFFSET);
+        x = player->position.x + offset;
+        int i = (int)(along > 0.0f ? ceilf(x / Landscape::ROAD_SPACING)
+                                   : floorf(x / Landscape::ROAD_SPACING));
+        float tx = i * Landscape::ROAD_SPACING;
+        if (tx < -edge || tx > edge)
+        {
+            along = -along;
+            i = (int)(along > 0.0f ? ceilf(x / Landscape::ROAD_SPACING)
+                                   : floorf(x / Landscape::ROAD_SPACING));
+            tx = i * Landscape::ROAD_SPACING;
+        }
         person->setDirection(along, 0.0f);
+        person->setTarget(tx, z);
     }
 
-    const float edge = Landscape::WORLD_HALF - 4.0f;
     x = clampFloat(x, -edge, edge);
     z = clampFloat(z, -edge, edge);
-    person->setWalkRemaining(12.0f + (float)cityMap.nextRandom(17));
     person->position_set(x, z);
+    person->setLeg(0);
+    person->setTurnCount(0);
     person->set3DSpriteRotation(
         atan2f(person->getDirectionZ(), person->getDirectionX()) - cityPi * 0.5f);
     person->is_visible = true;
@@ -1293,17 +1316,119 @@ void PicoGTA::updatePerson(Pedestrian *person)
     float directionZ = person->getDirectionZ();
     const float x = person->position.x + directionX * person->getWalkSpeed();
     const float z = person->position.y + directionZ * person->getWalkSpeed();
-    float remaining = person->getWalkRemaining() - person->getWalkSpeed();
-    if (remaining <= 0.0f)
+
+    const float tx = person->end_position.x;
+    const float tz = person->end_position.y;
+    const bool reached =
+        (directionX > 0.0f && x >= tx) || (directionX < 0.0f && x <= tx) ||
+        (directionZ > 0.0f && z >= tz) || (directionZ < 0.0f && z <= tz);
+
+    if (reached)
     {
-        directionX = -directionX;
-        directionZ = -directionZ;
-        person->setDirection(directionX, directionZ);
-        remaining = 12.0f + (float)cityMap.nextRandom(17);
-        person->set3DSpriteRotation(
-            atan2f(directionZ, directionX) - cityPi * 0.5f);
+        float ndx = directionX;
+        float ndz = directionZ;
+        float nx = x;
+        float nz = z;
+        int nleg = 0;
+        const float edge = Landscape::WORLD_HALF - 4.0f;
+        const float spacing = Landscape::ROAD_SPACING;
+        if (person->getLeg() == 1)
+        {
+            // crossing leg finished; begin new walking leg
+            const int side = (int)(cityMap.cellHash(index, person->getTurnCount(), 9) % 2) == 0
+                                 ? -1
+                                 : 1;
+            if (directionZ != 0.0f)
+            {
+                const int v = (int)(x / spacing + (x > 0.0f ? 0.5f : -0.5f));
+                ndx = (float)side;
+                ndz = 0.0f;
+                nx = (v + side) * spacing;
+            }
+            else
+            {
+                const int w = (int)(z / spacing + (z > 0.0f ? 0.5f : -0.5f));
+                ndz = (float)side;
+                ndx = 0.0f;
+                nz = (w + side) * spacing;
+            }
+            if (nx < -edge || nx > edge || nz < -edge || nz > edge)
+            {
+                ndx = -ndx;
+                ndz = -ndz;
+                if (directionZ != 0.0f)
+                {
+                    const int v = (int)(x / spacing + (x > 0.0f ? 0.5f : -0.5f));
+                    nx = (v - side) * spacing;
+                }
+                else
+                {
+                    const int w = (int)(z / spacing + (z > 0.0f ? 0.5f : -0.5f));
+                    nz = (w - side) * spacing;
+                }
+            }
+        }
+        else if (directionZ != 0.0f)
+        {
+            // reached intersection; pick next leg for this person
+            const uint32_t roll = cityMap.cellHash(index, person->getTurnCount(), 5);
+            const int choice = (int)(roll % 4);
+            const int w = (int)(z / spacing + (z > 0.0f ? 0.5f : -0.5f));
+            if (choice == 1 || choice == 2)
+            {
+                // turn: cross to perpendicular sidewalk
+                const int side = choice == 1 ? 1 : -1;
+                ndz = (float)side;
+                nz = w * spacing + side * Landscape::SIDEWALK_OFFSET;
+                nleg = 1;
+            }
+            else
+            {
+                const int ahead = choice == 0 ? (int)directionZ : -(int)directionZ;
+                ndz = (float)ahead;
+                nz = (w + ahead) * spacing;
+                if (nz < -edge || nz > edge)
+                {
+                    ndz = -directionZ;
+                    nz = (w - (int)directionZ) * spacing;
+                }
+            }
+        }
+        else
+        {
+            // reached intersection; pick next leg for this person
+            const uint32_t roll = cityMap.cellHash(index, person->getTurnCount(), 11);
+            const int choice = (int)(roll % 4);
+            const int v = (int)(x / spacing + (x > 0.0f ? 0.5f : -0.5f));
+            if (choice == 1 || choice == 2)
+            {
+                // turn: cross to perpendicular sidewalk
+                const int side = choice == 1 ? 1 : -1;
+                ndx = (float)side;
+                ndz = 0.0f;
+                nx = v * spacing + side * Landscape::SIDEWALK_OFFSET;
+                nleg = 1;
+            }
+            else
+            {
+                const int ahead = choice == 0 ? (int)directionX : -(int)directionX;
+                ndx = (float)ahead;
+                nx = (v + ahead) * spacing;
+                if (nx < -edge || nx > edge)
+                {
+                    ndx = -directionX;
+                    nx = (v - (int)directionX) * spacing;
+                }
+            }
+        }
+
+        person->setDirection(ndx, ndz);
+        person->setTarget(nx, nz);
+        person->setLeg(nleg);
+        person->setTurnCount(person->getTurnCount() + 1);
+        person->set3DSpriteRotation(atan2f(ndz, ndx) - cityPi * 0.5f);
     }
-    person->setWalkRemaining(remaining);
+
     person->position_set(x, z);
 
     const float offsetX = absoluteFloat(x - player->position.x);
