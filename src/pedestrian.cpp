@@ -238,6 +238,93 @@ void Pedestrian::update(Game *game)
     aabb_dirty = true;
 }
 
+void Pedestrian::keepOnSidewalk()
+{
+    float sidewalkX = position.x;
+    float sidewalkZ = position.y;
+
+    if (fabsf(direction.z) >= fabsf(direction.x))
+    {
+        float nearestLane = sidewalkX;
+        float nearestDistance = 999.0f;
+        const int centerLine = static_cast<int>(floorf(sidewalkX / Landscape::ROAD_SPACING + 0.5f));
+        for (int line = centerLine - 1; line <= centerLine + 1; ++line)
+        {
+            const float laneWest = line * Landscape::ROAD_SPACING - Landscape::SIDEWALK_OFFSET;
+            const float laneEast = line * Landscape::ROAD_SPACING + Landscape::SIDEWALK_OFFSET;
+            if (fabsf(sidewalkX - laneWest) < nearestDistance)
+            {
+                nearestDistance = fabsf(sidewalkX - laneWest);
+                nearestLane = laneWest;
+            }
+            if (fabsf(sidewalkX - laneEast) < nearestDistance)
+            {
+                nearestDistance = fabsf(sidewalkX - laneEast);
+                nearestLane = laneEast;
+            }
+        }
+        sidewalkX = nearestLane;
+    }
+    else
+    {
+        float nearestLane = sidewalkZ;
+        float nearestDistance = 999.0f;
+        const int centerLine = static_cast<int>(floorf(sidewalkZ / Landscape::ROAD_SPACING + 0.5f));
+        for (int line = centerLine - 1; line <= centerLine + 1; ++line)
+        {
+            const float laneNorth = line * Landscape::ROAD_SPACING - Landscape::SIDEWALK_OFFSET;
+            const float laneSouth = line * Landscape::ROAD_SPACING + Landscape::SIDEWALK_OFFSET;
+            if (fabsf(sidewalkZ - laneNorth) < nearestDistance)
+            {
+                nearestDistance = fabsf(sidewalkZ - laneNorth);
+                nearestLane = laneNorth;
+            }
+            if (fabsf(sidewalkZ - laneSouth) < nearestDistance)
+            {
+                nearestDistance = fabsf(sidewalkZ - laneSouth);
+                nearestLane = laneSouth;
+            }
+        }
+        sidewalkZ = nearestLane;
+    }
+
+    position_set(sidewalkX, sidewalkZ);
+
+    float targetX = end_position.x;
+    float targetZ = end_position.y;
+    if (fabsf(direction.z) >= fabsf(direction.x))
+    {
+        targetZ = sidewalkZ + direction.z * Landscape::ROAD_SPACING;
+        if (targetZ > Landscape::WORLD_HALF - 4.0f)
+            targetZ = Landscape::WORLD_HALF - 4.0f;
+        if (targetZ < -Landscape::WORLD_HALF + 4.0f)
+            targetZ = -Landscape::WORLD_HALF + 4.0f;
+        targetX = sidewalkX;
+    }
+    else
+    {
+        targetX = sidewalkX + direction.x * Landscape::ROAD_SPACING;
+        if (targetX > Landscape::WORLD_HALF - 4.0f)
+            targetX = Landscape::WORLD_HALF - 4.0f;
+        if (targetX < -Landscape::WORLD_HALF + 4.0f)
+            targetX = -Landscape::WORLD_HALF + 4.0f;
+        targetZ = sidewalkZ;
+    }
+
+    setTarget(targetX, targetZ);
+    setLeg(0);
+    leg_dirty = true;
+    aabb_dirty = true;
+}
+
+void Pedestrian::collision(Entity *other, Game *game)
+{
+    (void)game;
+    if (!other)
+        return;
+    keepOnSidewalk();
+}
+
 void Pedestrian::setDirection(float x, float z)
 {
     direction.x = x;

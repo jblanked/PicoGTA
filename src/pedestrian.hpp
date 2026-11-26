@@ -14,6 +14,8 @@ public:
     int getLeg() const { return leg; }
     int getTurnCount() const { return turnCount; }
     float getWalkSpeed() const { return speed; }
+    void collision(Entity *other, Game *game) override;
+    void keepOnSidewalk();
     void setDirection(float x, float z);
     void setTarget(float x, float z)
     {

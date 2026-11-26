@@ -117,6 +117,7 @@ private:
     static void backgroundRender(Entity *entity, Draw *canvas, Game *game, void *context);
     bool beginMultiplayerRequest(HttpAction action, const char *payload = nullptr);
     bool carBlocked(float x, float z, int skipIndex) const;
+    bool personBlocked(float x, float z, int skipIndex) const;
     float clampFloat(float value, float lower, float upper) const;
     int clampInt(int value, int lower, int upper) const;
     void connectMultiplayer();
