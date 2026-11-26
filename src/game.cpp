@@ -1,4 +1,5 @@
 #include "game.hpp"
+#include "scenery_layer.hpp"
 #include "pico-game-engine/engine/camera.hpp"
 #include "pico-game-engine/engine/engine.hpp"
 #include "pico-game-engine/engine/sprite3d.hpp"
@@ -629,18 +630,15 @@ bool PicoGTA::startGame()
     CallbackEntityDrawGame backgroundCallback;
     backgroundCallback.fn = &PicoGTA::backgroundRender;
     backgroundCallback.ctx = this;
-    Entity *background = ENGINE_MEM_NEW Entity(
-        "Background", ENTITY_3D_SPRITE, Vector(0.0f, 2000.0f), Vector(1.0f, 1.0f),
-        nullptr, nullptr, nullptr, CallbackEntityGame(), CallbackEntityGame(),
-        CallbackEntityGame(), backgroundCallback, CallbackEntityEntityGame(),
-        false, SPRITE_3D_NONE, Landscape::COLOR_BLACK);
+    Entity *background = ENGINE_MEM_NEW SceneryLayer(
+        "Background", Vector(0.0f, 2000.0f), Vector(), backgroundCallback, player, 4000.0f);
     if (!addEntityToLevel(level, background))
     {
         ENGINE_LOG_INFO("[PicoGTA:startGame] Failed to add background entity\n");
         return failStart();
     }
 
-    if (!landscape.create(level))
+    if (!landscape.create(level, player))
     {
         ENGINE_LOG_INFO("[PicoGTA:startGame] Failed to create city landscape\n");
         return failStart();
@@ -1108,17 +1106,17 @@ void PicoGTA::walkPlayer(Player *activePlayer, Game *game)
     const float oldZ = activePlayer->position.y;
     const float nextX = oldX + dx * speed;
     const float nextZ = oldZ + dz * speed;
-    if (!landscape.blocked(nextX, nextZ, false) &&
+    if (!landscape.benchBlocks(oldX, oldZ, nextX, nextZ, .25f) && !landscape.blocked(nextX, nextZ, false) &&
         !carBlocked(nextX, nextZ, TRAFFIC_COUNT))
     {
         activePlayer->position_set(nextX, nextZ);
     }
     else
     {
-        if (!landscape.blocked(nextX, oldZ, false) &&
+        if (!landscape.benchBlocks(oldX, oldZ, nextX, oldZ, .25f) && !landscape.blocked(nextX, oldZ, false) &&
             !carBlocked(nextX, oldZ, TRAFFIC_COUNT))
             activePlayer->position_set(nextX, oldZ);
-        else if (!landscape.blocked(oldX, nextZ, false) &&
+        else if (!landscape.benchBlocks(oldX, oldZ, oldX, nextZ, .25f) && !landscape.blocked(oldX, nextZ, false) &&
                  !carBlocked(oldX, nextZ, TRAFFIC_COUNT))
             activePlayer->position_set(oldX, nextZ);
         speed *= 0.25f;
@@ -1197,17 +1195,17 @@ void PicoGTA::driveCar(Player *activePlayer, Game *game)
     const float oldZ = activePlayer->position.y;
     const float nextX = oldX + dx * speed;
     const float nextZ = oldZ + dz * speed;
-    if (!landscape.blocked(nextX, nextZ, true) &&
+    if (!landscape.benchBlocks(oldX, oldZ, nextX, nextZ, .72f) && !landscape.blocked(nextX, nextZ, true) &&
         !carBlocked(nextX, nextZ, TRAFFIC_COUNT))
     {
         activePlayer->position_set(nextX, nextZ);
     }
     else
     {
-        if (!landscape.blocked(nextX, oldZ, true) &&
+        if (!landscape.benchBlocks(oldX, oldZ, nextX, oldZ, .72f) && !landscape.blocked(nextX, oldZ, true) &&
             !carBlocked(nextX, oldZ, TRAFFIC_COUNT))
             activePlayer->position_set(nextX, oldZ);
-        else if (!landscape.blocked(oldX, nextZ, true) &&
+        else if (!landscape.benchBlocks(oldX, oldZ, oldX, nextZ, .72f) && !landscape.blocked(oldX, nextZ, true) &&
                  !carBlocked(oldX, nextZ, TRAFFIC_COUNT))
             activePlayer->position_set(oldX, nextZ);
         speed *= 0.25f;
@@ -1294,7 +1292,7 @@ void PicoGTA::updateTraffic(Vehicle *car)
     const float oldZ = car->position.y;
     float nextX = oldX + dx * trafficSpeed;
     float nextZ = oldZ + dz * trafficSpeed;
-    if (!landscape.blocked(nextX, nextZ, true) && !carBlocked(nextX, nextZ, index))
+    if (!landscape.benchBlocks(oldX, oldZ, nextX, nextZ, .72f) && !landscape.blocked(nextX, nextZ, true) && !carBlocked(nextX, nextZ, index))
     {
         car->position_set(nextX, nextZ);
     }

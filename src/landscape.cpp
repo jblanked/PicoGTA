@@ -1,4 +1,5 @@
 #include "landscape.hpp"
+#include "scenery_layer.hpp"
 #include "map.hpp"
 #include "road.hpp"
 #include "pico-game-engine/engine/game.hpp"
@@ -37,7 +38,7 @@ float Landscape::minFloat(float left, float right) const
     return left < right ? left : right;
 }
 
-bool Landscape::create(Level *level)
+bool Landscape::create(Level *level, const Entity *viewer)
 {
     if (!level)
         return false;
@@ -48,12 +49,8 @@ bool Landscape::create(Level *level)
     CallbackEntityDrawGame cityRender;
     cityRender.fn = &Landscape::renderCallback;
     cityRender.ctx = this;
-    Entity *entity = ENGINE_MEM_NEW Entity(
-        "Downtown", ENTITY_3D_SPRITE, Vector(0.0f, SCENE_ANCHOR_Z),
-        Vector(WORLD_SIZE, WORLD_SIZE), nullptr, nullptr, nullptr,
-        CallbackEntityGame(), CallbackEntityGame(), CallbackEntityGame(),
-        cityRender, CallbackEntityEntityGame(), false,
-        SPRITE_3D_NONE, COLOR_BLACK);
+    Entity *entity = ENGINE_MEM_NEW SceneryLayer(
+        "Downtown", Vector(0.0f, SCENE_ANCHOR_Z), Vector(), cityRender, viewer, 2000.0f);
     if (!entity)
     {
         ENGINE_LOG_INFO("[Landscape:create] Failed to create city entity\n");
@@ -116,7 +113,7 @@ bool Landscape::create(Level *level)
     }
 
     city = entity;
-    return true;
+    return benches.create(level);
 }
 
 void Landscape::renderCallback(Entity *entity, Draw *draw, Game *game, void *context)
@@ -247,6 +244,7 @@ bool Landscape::boundsMayBeVisible(const Vector &minimum, const Vector &maximum,
 
 void Landscape::release()
 {
+    benches.release();
     for (int i = 0; i < MAX_BUILDING_CHUNKS; ++i)
     {
         if (buildingChunks[i].mesh)
@@ -686,6 +684,7 @@ void Landscape::fillCity(float centerX, float centerZ)
 
     addStreets();
     addBlocks(centerX, centerZ);
+    benches.update(map,centerX,centerZ,CITY_FIELD_OF_VIEW+CHUNK_LAG+4);
     activeBoundsActive = false;
     if (activeBoundsValid)
     {
