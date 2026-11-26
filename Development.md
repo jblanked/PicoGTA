@@ -30,7 +30,7 @@ shared depth during startup so buildings hide cars and billboard benches,
 including partial occlusion. Failure to allocate the depth buffer fails startup.
 At 320x320 it needs 204,800 bytes of PSRAM (heap on non-PSRAM platforms) plus
 1,600 bytes of internal scanline scratch. The local city draw distance remains
-within the depth buffer's approximately 256-unit range.
+within the depth buffer's tested 0.1 through 256-unit range.
 
 Scenery callbacks retain a distant sort position along the player's heading to
 keep the sky/background behind world rendering. City meshes keep their actual
