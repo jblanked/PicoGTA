@@ -13,7 +13,7 @@ namespace
 class BenchEntity : public Entity
 {
   public:
-    explicit BenchEntity(Sprite3D *mesh);
+    explicit BenchEntity(Sprite3D *mesh, float visualRadius);
     void render(Draw *draw, Game *game) override;
     void detach();
     void place(const BenchLayout::Placement &bench, const Vector &center, const Vector &halfSize, float yaw);
@@ -21,12 +21,59 @@ class BenchEntity : public Entity
   private:
     Sprite3D *sharedMesh;
     Vector meshPosition;
+    float visualRadius;
 };
 
-BenchEntity::BenchEntity(Sprite3D *mesh)
-    : Entity("Park bench", ENTITY_3D_SPRITE, Vector(10000, 10000), Vector(), nullptr), sharedMesh(mesh)
+BenchEntity::BenchEntity(Sprite3D *mesh, float visualRadius)
+    : Entity("Park bench", ENTITY_3D_SPRITE, Vector(10000, 10000), Vector(), nullptr), sharedMesh(mesh),
+      visualRadius(visualRadius)
 {
     is_visible = false;
+}
+
+// A rotation-invariant sphere from the actual mesh, independent of collision boxes.
+// Invalid bounds disable culling; they must never hide an otherwise drawable asset.
+float meshRadius(const Sprite3D &mesh)
+{
+    float squared = 0;
+    for (uint16_t i = 0; i < mesh.getTriangleCount(); ++i)
+    {
+        Triangle3D triangle;
+        if (!mesh.getTriangle(i, triangle))
+            return -1;
+        const float xs[] = {triangle.x1, triangle.x2, triangle.x3};
+        const float ys[] = {triangle.y1, triangle.y2, triangle.y3};
+        const float zs[] = {triangle.z1, triangle.z2, triangle.z3};
+        for (int j = 0; j < 3; ++j)
+        {
+            const float distance = xs[j] * xs[j] + ys[j] * ys[j] + zs[j] * zs[j];
+            if (!isfinite(distance))
+                return -1;
+            squared = fmaxf(squared, distance);
+        }
+    }
+    return sqrtf(squared) + .01f;
+}
+
+bool outsideCamera(const Vector &origin, float radius, const Camera &camera, const Vector &screen)
+{
+    if (!(radius > 0) || !isfinite(radius) || !(screen.x > 0) || !(screen.y > 0))
+        return false;
+    const float dx = origin.x - camera.position.x, dz = origin.y - camera.position.y;
+    const float x = -camera.direction.y * dx + camera.direction.x * dz;
+    const float z = camera.direction.x * dx + camera.direction.y * dz;
+    const float directionSquared = camera.direction.x * camera.direction.x +
+                                   camera.direction.y * camera.direction.y;
+    if (!isfinite(x) || !isfinite(z) || !isfinite(directionSquared) || !isfinite(camera.height))
+        return false;
+    // Match the renderer's near plane and screen-height focal length. Plane support
+    // radii also handle non-unit camera directions without normalizing the camera.
+    if (z + radius * sqrtf(directionSquared) < .1f)
+        return true;
+    const float aspect = screen.x / (2 * screen.y);
+    if (fabsf(x) > aspect * z + radius * sqrtf(directionSquared * (1 + aspect * aspect)))
+        return true;
+    return fabsf(camera.height) > .5f * z + radius * sqrtf(1 + .25f * directionSquared);
 }
 
 void BenchEntity::render(Draw *draw, Game *game)
@@ -35,6 +82,10 @@ void BenchEntity::render(Draw *draw, Game *game)
         return;
     const Camera *camera = game->getCamera();
     if (!camera)
+        return;
+    // Keep shadow rendering conservative if a future scene enables it.
+    if (!game->current_level->getShadowColor() &&
+        outsideCamera(meshPosition, visualRadius, *camera, draw->getDisplaySize()))
         return;
     sharedMesh->setPosition(meshPosition);
     sharedMesh->setRotation(sprite_rotation);
@@ -142,9 +193,10 @@ bool BenchProps::create(Level *level)
     // Missing texture sidecars leave the mesh's exported material colors intact.
     if (mesh->fromUVPath(ASSETS_FOLDER "/parkbench/parkbench.uv"))
         mesh->fromTexturePath(ASSETS_FOLDER "/parkbench/parkbench.rgb565", 64, 64);
+    const float visualRadius = meshRadius(*mesh);
     for (int i = 0; i < BenchLayout::CAPACITY; ++i)
     {
-        BenchEntity *entity = ENGINE_MEM_NEW BenchEntity(mesh);
+        BenchEntity *entity = ENGINE_MEM_NEW BenchEntity(mesh, visualRadius);
         if (!entity)
         {
             release();
