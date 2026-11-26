@@ -24,8 +24,8 @@ refresh with city geometry; movement does not load assets or allocate entities.
 Walking, driving, and traffic use swept-circle collision checks.
 
 The vendored engine includes authored collision boxes and the opt-in shared
-scene depth renderer from engine PR
-https://github.com/pico-game-engine/pico-game-engine/pull/30. PicoGTA enables
+scene depth renderer from the [engine fork](https://github.com/Slasher006/pico-game-engine/commit/2ad7415).
+The earlier engine PR #30 was closed without merging. PicoGTA enables
 shared depth during startup so buildings hide cars and billboard benches,
 including partial occlusion. Failure to allocate the depth buffer fails startup.
 At 320x320 it needs 204,800 bytes of PSRAM (heap on non-PSRAM platforms) plus
