@@ -1,4 +1,5 @@
 #include "landscape.hpp"
+#include "scenery_layer.hpp"
 #include "map.hpp"
 #include "road.hpp"
 #include "pico-game-engine/engine/game.hpp"
@@ -37,7 +38,7 @@ float Landscape::minFloat(float left, float right) const
     return left < right ? left : right;
 }
 
-bool Landscape::create(Level *level)
+bool Landscape::create(Level *level, const Entity *viewer)
 {
     if (!level)
         return false;
@@ -48,12 +49,8 @@ bool Landscape::create(Level *level)
     CallbackEntityDrawGame cityRender;
     cityRender.fn = &Landscape::renderCallback;
     cityRender.ctx = this;
-    Entity *entity = ENGINE_MEM_NEW Entity(
-        "Downtown", ENTITY_3D_SPRITE, Vector(0.0f, SCENE_ANCHOR_Z),
-        Vector(WORLD_SIZE, WORLD_SIZE), nullptr, nullptr, nullptr,
-        CallbackEntityGame(), CallbackEntityGame(), CallbackEntityGame(),
-        cityRender, CallbackEntityEntityGame(), false,
-        SPRITE_3D_NONE, COLOR_BLACK);
+    Entity *entity = ENGINE_MEM_NEW SceneryLayer(
+        "Downtown", Vector(0.0f, SCENE_ANCHOR_Z), Vector(), cityRender, viewer, 2000.0f);
     if (!entity)
     {
         ENGINE_LOG_INFO("[Landscape:create] Failed to create city entity\n");
@@ -79,7 +76,7 @@ bool Landscape::create(Level *level)
         return false;
     }
     roadChunk.mesh->setWireframe(false);
-    roadChunk.mesh->setPosition(entity->position);
+    roadChunk.mesh->setPosition(Vector(0.0f, SCENE_ANCHOR_Z));
     activeMesh = roadChunk.mesh;
     activeTriangleCapacity = roadTriangleCapacity;
 
@@ -101,7 +98,7 @@ bool Landscape::create(Level *level)
             return false;
         }
         chunk.mesh->setWireframe(false);
-        chunk.mesh->setPosition(entity->position);
+        chunk.mesh->setPosition(Vector(0.0f, SCENE_ANCHOR_Z));
     }
     entity->is_visible = false;
 
@@ -116,7 +113,7 @@ bool Landscape::create(Level *level)
     }
 
     city = entity;
-    return true;
+    return benches.create(level);
 }
 
 void Landscape::renderCallback(Entity *entity, Draw *draw, Game *game, void *context)
@@ -247,6 +244,7 @@ bool Landscape::boundsMayBeVisible(const Vector &minimum, const Vector &maximum,
 
 void Landscape::release()
 {
+    benches.release();
     for (int i = 0; i < MAX_BUILDING_CHUNKS; ++i)
     {
         if (buildingChunks[i].mesh)
@@ -372,7 +370,8 @@ void Landscape::includeActivePoint(float x, float y, float z)
     if (!activeBoundsActive)
         return;
 
-    const Vector &position = city->position;
+    // The callback entity moves for draw ordering; bounds follow the mesh.
+    const Vector position = activeMesh->getPosition();
     const Vector point(x + position.x, y + position.z, z + position.y);
     if (!activeBoundsValid)
     {
@@ -595,7 +594,7 @@ void Landscape::addBuilding(const BuildingSpec &spec, int chunkIndex, bool rebui
         chunk.cache_valid = false;
         chunk.bounds_valid = false;
         mesh->setWireframe(false);
-        mesh->setPosition(city->position);
+        mesh->setPosition(Vector(0.0f, SCENE_ANCHOR_Z));
 
         Sprite3D *previousMesh = activeMesh;
         const uint16_t previousCapacity = activeTriangleCapacity;
@@ -686,6 +685,7 @@ void Landscape::fillCity(float centerX, float centerZ)
 
     addStreets();
     addBlocks(centerX, centerZ);
+    benches.update(map,centerX,centerZ,CITY_FIELD_OF_VIEW+CHUNK_LAG+4);
     activeBoundsActive = false;
     if (activeBoundsValid)
     {
@@ -876,4 +876,8 @@ void Landscape::addBlock(int col, int row, float blockX, float blockZ,
         spec.roofColor = buildingColors[detail % 8][1];
         spec.type = type;
     }
+}
+bool Landscape::benchBlocks(float x0, float z0, float x1, float z1, float radius) const
+{
+    return benches.blocks(x0, z0, x1, z1, radius);
 }

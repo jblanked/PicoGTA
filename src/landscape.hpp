@@ -1,5 +1,6 @@
 #pragma once
 #include "building.hpp"
+#include "bench_props.hpp"
 #include "general.hpp"
 #include "map.hpp"
 #include "pico-game-engine/engine/entity.hpp"
@@ -71,8 +72,9 @@ public:
     bool addGroundRect(float x, float z, float width, float depth, float height,
                        uint16_t color, float segmentSize);
     bool blocked(float x, float z, bool isCar) const;
+    bool benchBlocks(float x0, float z0, float x1, float z1, float radius) const;
     void buildAround(float centerX, float centerZ);
-    bool create(Level *level);
+    bool create(Level *level, const Entity *viewer);
     bool crossesBuilding(float x0, float z0, float x1, float z1) const;
     const Building *getBuilding(int index) const;
     int getBuildingCount() const { return buildingCount; }
@@ -189,5 +191,6 @@ private:
     bool geometryError;
     Level *level;
     Map map;
+    BenchProps benches;
     Road road;
 };
