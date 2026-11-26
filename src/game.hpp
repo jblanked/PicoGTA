@@ -50,7 +50,7 @@ private:
         MAX_REMOTE_PLAYERS = 3,
         MULTIPLAYER_REMOTE_TIMEOUT_FRAMES = 900,
         MULTIPLAYER_SEND_INTERVAL_FRAMES = 6,
-        PERSON_COUNT = 6,
+        PERSON_COUNT = 8,
         TRAFFIC_COUNT = 6
     };
 
@@ -231,9 +231,11 @@ private:
         "wss://www.jblanked.com/ws/picoware/picogta/";
     Pedestrian *people[PERSON_COUNT];
     float peopleSpeeds[PERSON_COUNT];
-    const uint16_t personColors[6] = {0x001F, 0xF800, 0x07E0, 0xFD20, 0xF81F, 0x001F};
-    const char *const personNames[6] = {
-        "Person 1", "Person 2", "Person 3", "Person 4", "Person 5", "Person 6"};
+    const uint16_t personColors[8] = {
+        0x001F, 0xF800, 0x07E0, 0xFD20, 0xF81F, 0x001F, 0x07FF, 0xF800};
+    const char *const personNames[8] = {
+        "Person 1", "Person 2", "Person 3", "Person 4",
+        "Person 5", "Person 6", "Person 7", "Person 8"};
     Player *player;
     Vehicle *playerCar;
     const float recycleDistance = 56.0f;
