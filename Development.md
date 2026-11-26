@@ -23,12 +23,18 @@ bytes before image metadata), plus one authored collider set. Nearby placements
 refresh with city geometry; movement does not load assets or allocate entities.
 Walking, driving, and traffic use swept-circle collision checks.
 
-This imports `collision_boxes.hpp` unchanged from engine PR
-https://github.com/pico-game-engine/pico-game-engine/pull/30 (commit `87d1595`).
-No other engine changes are included. Scenery callback layers track a distant
-sort position along the player's heading so they render before billboard props;
-the actual city meshes retain their fixed geometry anchor. Existing painter-order
-limitations between separate world objects remain.
+The vendored engine includes authored collision boxes and the opt-in shared
+scene depth renderer from engine PR
+https://github.com/pico-game-engine/pico-game-engine/pull/30. PicoGTA enables
+shared depth during startup so buildings hide cars and billboard benches,
+including partial occlusion. Failure to allocate the depth buffer fails startup.
+At 320x320 it needs 204,800 bytes of PSRAM (heap on non-PSRAM platforms) plus
+1,600 bytes of internal scanline scratch. The local city draw distance remains
+within the depth buffer's approximately 256-unit range.
+
+Scenery callbacks retain a distant sort position along the player's heading to
+keep the sky/background behind world rendering. City meshes keep their actual
+fixed geometry anchor and participate in depth testing through the level.
 
 Run the placement regression from the repository root:
 

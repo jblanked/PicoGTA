@@ -626,6 +626,7 @@ bool PicoGTA::startGame()
     game->level_add(level);
     level->setLightDirection(-0.35f, 1.0f, -0.5f);
     level->setShadowColor(0);
+    if (!level->setSceneDepthEnabled(true)) return failStart();
 
     CallbackEntityDrawGame backgroundCallback;
     backgroundCallback.fn = &PicoGTA::backgroundRender;
