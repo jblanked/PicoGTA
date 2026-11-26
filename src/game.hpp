@@ -276,7 +276,7 @@ private:
     const float walkSpeed = PICO_GTA_WALK_SPEED;
 #endif
 #ifndef PICO_GTA_WALK_TURN
-    const float walkTurn = 0.4f;
+    const float walkTurn = 0.25f;
 #else
     const float walkTurn = PICO_GTA_WALK_TURN;
 #endif
