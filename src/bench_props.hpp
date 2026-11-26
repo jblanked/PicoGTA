@@ -1,11 +1,11 @@
 #pragma once
 #include "bench_layout.hpp"
 #include "pico-game-engine/engine/entity.hpp"
-#include "prop_colliders.hpp"
 
 class Level;
 
-// Level owns the entities; this pool owns one shared mesh, texture and collider set.
+// Level owns the entities; this pool owns one shared mesh and texture.
+// One authored box supplies each entity's position and size.
 class BenchProps
 {
   public:
@@ -16,7 +16,10 @@ class BenchProps
 
   private:
     Sprite3D *mesh = nullptr;
-    PropColliders boxes;
+    Level *level = nullptr;
+    Vector boxCenter;
+    Vector boxHalfSize;
+    float boxYaw = 0;
     Entity *entities[BenchLayout::CAPACITY] = {};
     BenchLayout::Placement placements[BenchLayout::CAPACITY];
     int count = 0;
